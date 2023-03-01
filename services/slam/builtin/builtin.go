@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -711,7 +712,7 @@ func NewBuiltIn(ctx context.Context, deps registry.Dependencies, config config.S
 		return nil, errors.Wrap(err, "error with slam service slam process")
 	}
 
-	client, clientClose, err := setupGRPCConnection(ctx, slamSvc.port, logger)
+	client, clientClose, err := setupGRPCConnection(cancelCtx, slamSvc.port, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "error with initial grpc client to slam algorithm")
 	}
@@ -729,6 +730,7 @@ func (slamSvc *builtIn) Close() error {
 			goutils.UncheckedErrorFunc(slamSvc.clientAlgoClose)
 		}
 	}()
+	fmt.Println("START CLOSE")
 	slamSvc.cancelFunc()
 	if slamSvc.bufferSLAMProcessLogs {
 		if slamSvc.slamProcessLogReader != nil {
@@ -751,6 +753,7 @@ func (slamSvc *builtIn) Close() error {
 			}
 		}()
 	}
+	fmt.Println("FINISH CLOSE")
 	return nil
 }
 
