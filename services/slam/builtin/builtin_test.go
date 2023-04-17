@@ -647,7 +647,7 @@ func TestORBSLAMNew(t *testing.T) {
 
 	createFakeSLAMLibraries()
 
-	t.Run("New orbslamv3 service with good camera in slam mode rgbd", func(t *testing.T) {
+	t.Run("New orblamv3 service with good camera in slam mode rgbd", func(t *testing.T) {
 		grpcServer, port := setupTestGRPCServer(t)
 		attrCfg := &slamConfig.AttrConfig{
 			Sensors:       []string{"good_color_camera", "good_depth_camera"},
