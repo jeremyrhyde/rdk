@@ -11,8 +11,8 @@ import (
 )
 
 type MotionOctree struct {
-	basicOct *BasicOctree
-	pose     spatialmath.Pose
+	BasicOctree
+	pose spatialmath.Pose
 }
 
 func NewMotionOctree(pose spatialmath.Pose, sideLength float64) (*MotionOctree, error) {
@@ -26,50 +26,24 @@ func NewMotionOctree(pose spatialmath.Pose, sideLength float64) (*MotionOctree, 
 	}
 
 	motionOct := &MotionOctree{
-		basicOct: basicOct,
-		pose:     pose,
+		BasicOctree: *basicOct,
+		pose:        pose,
 	}
 
 	return motionOct, nil
 }
 
-func (mOct *MotionOctree) Size() int {
-	return mOct.basicOct.size
-}
-
-func (mOct *MotionOctree) MaxVal() int {
-	return mOct.basicOct.MaxVal()
-}
-
-func (mOct *MotionOctree) Set(p r3.Vector, d Data) error {
-	return mOct.basicOct.Set(p, d)
-}
-
-func (mOct *MotionOctree) At(x, y, z float64) (Data, bool) {
-	return mOct.basicOct.At(x, y, z)
-}
-
-func (mOct *MotionOctree) Iterate(numBatches, currentBatch int, fn func(p r3.Vector, d Data) bool) {
-	mOct.basicOct.Iterate(numBatches, currentBatch, fn)
-}
-
-func (mOct *MotionOctree) MetaData() MetaData {
-	return mOct.basicOct.meta
-}
-
 // CollidesWithGeometry will return whether a given geometry is in collision with a given point.
 func (mOct *MotionOctree) CollidesWithGeometry(geom spatialmath.Geometry, threshold int, buffer float64) (bool, error) {
 
-	octree := mOct.basicOct
-
-	if octree.MaxVal() < threshold {
+	if mOct.MaxVal() < threshold {
 		return false, nil
 	}
-	switch octree.node.nodeType {
+	switch mOct.node.nodeType {
 	case internalNode:
 		ocbox, err := spatialmath.NewBox(
-			spatialmath.NewPoseFromPoint(octree.center),
-			r3.Vector{X: octree.sideLength + buffer, Y: octree.sideLength + buffer, Z: octree.sideLength + buffer},
+			spatialmath.NewPoseFromPoint(mOct.center),
+			r3.Vector{X: mOct.sideLength + buffer, Y: mOct.sideLength + buffer, Z: mOct.sideLength + buffer},
 			"",
 		)
 		if err != nil {
@@ -84,7 +58,7 @@ func (mOct *MotionOctree) CollidesWithGeometry(geom spatialmath.Geometry, thresh
 		if !collide {
 			return false, nil
 		}
-		for _, child := range octree.node.children {
+		for _, child := range mOct.node.children {
 			collide, err = child.CollidesWithGeometry(geom, threshold, buffer)
 			if err != nil {
 				return false, err
@@ -97,7 +71,7 @@ func (mOct *MotionOctree) CollidesWithGeometry(geom spatialmath.Geometry, thresh
 	case leafNodeEmpty:
 		return false, nil
 	case leafNodeFilled:
-		ptGeom, err := spatialmath.NewSphere(spatialmath.NewPoseFromPoint(octree.node.point.P), buffer, "")
+		ptGeom, err := spatialmath.NewSphere(spatialmath.NewPoseFromPoint(mOct.node.point.P), buffer, "")
 		if err != nil {
 			return false, err
 		}
@@ -117,17 +91,17 @@ func (octree *MotionOctree) ToProtobuf() *commonpb.Geometry {
 }
 
 // Label returns the label of this octree.
-func (octree *MotionOctree) Label() string {
-	return octree.basicOct.node.label
+func (mOct *MotionOctree) Label() string {
+	return mOct.node.label
 }
 
 // String returns a human readable string that represents this octree.
-func (octree *MotionOctree) String() string {
-	return fmt.Sprintf("octree with center at %v and side length of %v", octree.pose, octree.basicOct.sideLength)
+func (mOct *MotionOctree) String() string {
+	return fmt.Sprintf("octree with center at %v and side length of %v", mOct.pose, mOct.sideLength)
 }
 
 // ToPoints converts an octree geometry into []r3.Vector.
-func (octree *MotionOctree) ToPoints(resolution float64) []r3.Vector {
+func (mOct *MotionOctree) ToPoints(resolution float64) []r3.Vector {
 	// TODO
 	return nil
 }
