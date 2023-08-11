@@ -141,7 +141,7 @@ func createMoveOnGlobeEnvironment(ctx context.Context, t *testing.T, gpsPoint *g
 func createMoveOnMapEnvironment(ctx context.Context, t *testing.T, pcdPath string) motion.Service {
 	injectSlam := inject.NewSLAMService("test_slam")
 	injectSlam.GetPointCloudMapFunc = func(ctx context.Context) (func() ([]byte, error), error) {
-		return getPointCloudMap(filepath.Clean(artifact.MustPath(pcdPath)))
+		return getPointCloudMap(pcdPath) //filepath.Clean(artifact.MustPath(pcdPath)))
 	}
 	injectSlam.GetPositionFunc = func(ctx context.Context) (spatialmath.Pose, string, error) {
 		return spatialmath.NewZeroPose(), "", nil
@@ -295,26 +295,43 @@ func TestMoveWithObstacles(t *testing.T) {
 func TestMoveOnMapLongDistance(t *testing.T) {
 	ctx := context.Background()
 	// goal x-position of 1.32m is scaled to be in mm
-	goal := spatialmath.NewPoseFromPoint(r3.Vector{X: -32.508 * 1000, Y: -2.092 * 1000})
-	ms := createMoveOnMapEnvironment(ctx, t, "slam/example_cartographer_outputs/viam-office-02-22-3/pointcloud/pointcloud_4.pcd")
-	extra := make(map[string]interface{})
-	extra["planning_alg"] = "cbirrt"
+	goal := spatialmath.NewPoseFromPoint(r3.Vector{X: 47.8 * 1000, Y: -20 * 1000})
 
-	startTime := time.Now()
-	path, _, err := ms.(*builtIn).planMoveOnMap(
-		context.Background(),
-		base.Named("test_base"),
-		goal,
-		slam.Named("test_slam"),
-		kinematicbase.NewKinematicBaseOptions(),
-		extra,
-	)
-	test.That(t, err, test.ShouldBeNil)
-	test.That(t, len(path), test.ShouldBeGreaterThan, 2)
-	endTime := time.Now()
+	file := []string{
+		"output_5cm_resolution.pcd",
+		"output_10cm_resolution.pcd",
+		"output_15cm_resolution.pcd",
+		"output_20cm_resolution.pcd",
+		"output_25cm_resolution.pcd",
+		"output_30cm_resolution.pcd",
+		"output_35cm_resolution.pcd",
+		"output_40cm_resolution.pcd",
+		"output_45cm_resolution.pcd",
+		"output_50cm_resolution.pcd",
+	}
 
-	deltaTime := endTime.Sub(startTime)
-	fmt.Printf("Planning time: %vms\n", deltaTime.Milliseconds())
+	for _, f := range file {
+		fmt.Printf("---------------- %v ------------------ \n", f)
+		ms := createMoveOnMapEnvironment(ctx, t, f)
+		extra := make(map[string]interface{})
+		extra["planning_alg"] = "cbirrt"
+
+		startTime := time.Now()
+		path, _, err := ms.(*builtIn).planMoveOnMap(
+			context.Background(),
+			base.Named("test_base"),
+			goal,
+			slam.Named("test_slam"),
+			kinematicbase.NewKinematicBaseOptions(),
+			extra,
+		)
+		test.That(t, err, test.ShouldBeNil)
+		test.That(t, len(path), test.ShouldBeGreaterThan, 2)
+		endTime := time.Now()
+
+		deltaTime := endTime.Sub(startTime)
+		fmt.Printf("Planning time: %vms\n", deltaTime.Milliseconds())
+	}
 }
 
 func TestMoveOnMap(t *testing.T) {
