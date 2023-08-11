@@ -2,14 +2,17 @@ package builtin
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/edaniels/golog"
 	"github.com/golang/geo/r3"
 	geo "github.com/kellydunn/golang-geo"
+
 	// register.
 	commonpb "go.viam.com/api/common/v1"
 	"go.viam.com/test"
@@ -297,6 +300,7 @@ func TestMoveOnMapLongDistance(t *testing.T) {
 	extra := make(map[string]interface{})
 	extra["planning_alg"] = "cbirrt"
 
+	startTime := time.Now()
 	path, _, err := ms.(*builtIn).planMoveOnMap(
 		context.Background(),
 		base.Named("test_base"),
@@ -307,6 +311,10 @@ func TestMoveOnMapLongDistance(t *testing.T) {
 	)
 	test.That(t, err, test.ShouldBeNil)
 	test.That(t, len(path), test.ShouldBeGreaterThan, 2)
+	endTime := time.Now()
+
+	deltaTime := endTime.Sub(startTime)
+	fmt.Printf("Planning time: %vms\n", deltaTime.Milliseconds())
 }
 
 func TestMoveOnMap(t *testing.T) {
