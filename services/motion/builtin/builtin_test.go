@@ -2,17 +2,14 @@ package builtin
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/edaniels/golog"
 	"github.com/golang/geo/r3"
 	geo "github.com/kellydunn/golang-geo"
-
 	// register.
 	commonpb "go.viam.com/api/common/v1"
 	"go.viam.com/test"
@@ -141,7 +138,7 @@ func createMoveOnGlobeEnvironment(ctx context.Context, t *testing.T, gpsPoint *g
 func createMoveOnMapEnvironment(ctx context.Context, t *testing.T, pcdPath string) motion.Service {
 	injectSlam := inject.NewSLAMService("test_slam")
 	injectSlam.GetPointCloudMapFunc = func(ctx context.Context) (func() ([]byte, error), error) {
-		return getPointCloudMap(pcdPath) //filepath.Clean(artifact.MustPath(pcdPath)))
+		return getPointCloudMap(filepath.Clean(artifact.MustPath(pcdPath)))
 	}
 	injectSlam.GetPositionFunc = func(ctx context.Context) (spatialmath.Pose, string, error) {
 		return spatialmath.NewZeroPose(), "", nil
@@ -293,21 +290,17 @@ func TestMoveWithObstacles(t *testing.T) {
 }
 
 func TestMoveOnMapLongDistance(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	// goal x-position of 1.32m is scaled to be in mm
-	goal := spatialmath.NewPoseFromPoint(r3.Vector{X: 47.8 * 1000, Y: -20 * 1000})
+	// goal position is scaled to be in mm
+	goal := spatialmath.NewPoseFromPoint(r3.Vector{X: -32.508 * 1000, Y: -2.092 * 1000})
 
-	file := []string{
-		"output_1x_resolution.pcd",
-	}
-
-	for _, f := range file {
-		fmt.Printf("---------------- %v ------------------ \n", f)
-		ms := createMoveOnMapEnvironment(ctx, t, f)
+	t.Run("test cbirrt planning on office map", func(t *testing.T) {
+		t.Parallel()
+		ms := createMoveOnMapEnvironment(ctx, t, "slam/example_cartographer_outputs/viam-office-02-22-3/pointcloud/pointcloud_4.pcd")
 		extra := make(map[string]interface{})
 		extra["planning_alg"] = "cbirrt"
 
-		startTime := time.Now()
 		path, _, err := ms.(*builtIn).planMoveOnMap(
 			context.Background(),
 			base.Named("test_base"),
@@ -318,11 +311,25 @@ func TestMoveOnMapLongDistance(t *testing.T) {
 		)
 		test.That(t, err, test.ShouldBeNil)
 		test.That(t, len(path), test.ShouldBeGreaterThan, 2)
-		endTime := time.Now()
+	})
 
-		deltaTime := endTime.Sub(startTime)
-		fmt.Printf("Planning time: %vms\n", deltaTime.Milliseconds())
-	}
+	t.Run("test rrtstar planning on office map", func(t *testing.T) {
+		t.Parallel()
+		ms := createMoveOnMapEnvironment(ctx, t, "slam/example_cartographer_outputs/viam-office-02-22-3/pointcloud/pointcloud_4.pcd")
+		extra := make(map[string]interface{})
+		extra["planning_alg"] = "rrtstar"
+
+		path, _, err := ms.(*builtIn).planMoveOnMap(
+			context.Background(),
+			base.Named("test_base"),
+			goal,
+			slam.Named("test_slam"),
+			kinematicbase.NewKinematicBaseOptions(),
+			extra,
+		)
+		test.That(t, err, test.ShouldBeNil)
+		test.That(t, len(path), test.ShouldBeGreaterThan, 2)
+	})
 }
 
 func TestMoveOnMap(t *testing.T) {
