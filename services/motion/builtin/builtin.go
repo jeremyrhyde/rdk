@@ -510,5 +510,8 @@ func (ms *builtIn) planMoveOnMap(
 		return nil, nil, err
 	}
 	plan, err := motionplan.FrameStepsFromRobotPath(f.Name(), solutionMap)
+	for _, step := range plan {
+		fmt.Printf("%v,%v\n", step[0].Value, step[1].Value)
+	}
 	return plan, kb, err
 }

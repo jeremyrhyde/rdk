@@ -298,16 +298,7 @@ func TestMoveOnMapLongDistance(t *testing.T) {
 	goal := spatialmath.NewPoseFromPoint(r3.Vector{X: 47.8 * 1000, Y: -20 * 1000})
 
 	file := []string{
-		"output_5cm_resolution.pcd",
-		"output_10cm_resolution.pcd",
-		"output_15cm_resolution.pcd",
-		"output_20cm_resolution.pcd",
-		"output_25cm_resolution.pcd",
-		"output_30cm_resolution.pcd",
-		"output_35cm_resolution.pcd",
-		"output_40cm_resolution.pcd",
-		"output_45cm_resolution.pcd",
-		"output_50cm_resolution.pcd",
+		"output_1x_resolution.pcd",
 	}
 
 	for _, f := range file {
