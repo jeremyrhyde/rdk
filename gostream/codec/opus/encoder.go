@@ -90,7 +90,7 @@ func NewEncoder(sampleRate, channelCount int, latency time.Duration, logger golo
 		close(enc.encodedCh)
 	})
 
-	return enc, nil
+	return nil, nil
 }
 
 // Read returns an audio chunk for codec to process.

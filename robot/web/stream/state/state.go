@@ -9,13 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pion/rtp"
 	"github.com/pkg/errors"
 	"go.uber.org/multierr"
 	"go.viam.com/utils"
 
 	"go.viam.com/rdk/components/camera"
-	"go.viam.com/rdk/components/camera/rtppassthrough"
 	"go.viam.com/rdk/gostream"
 	"go.viam.com/rdk/logging"
 	"go.viam.com/rdk/robot"
@@ -50,8 +48,6 @@ type StreamState struct {
 
 	activePeers  int
 	streamSource streamSource
-	// streamSourceSub is only non nil if streamSource == streamSourcePassthrough
-	streamSourceSub rtppassthrough.Subscription
 }
 
 // New returns a new *StreamState.
@@ -212,36 +208,6 @@ func (ss *StreamState) initStreamSourceMonitor() {
 	}
 }
 
-func (ss *StreamState) monitorSubscription(sub rtppassthrough.Subscription) {
-	if ss.streamSource == streamSourceGoStream {
-		ss.logger.Debugf("monitorSubscription stopping gostream %s", ss.Stream.Name())
-		// if we were streaming using gostream, stop streaming using gostream as we are now using passthrough
-		ss.Stream.Stop()
-	}
-	ss.streamSourceSub = sub
-	ss.streamSource = streamSourcePassthrough
-	monitorSubFunc := func() {
-		// if the stream state is shutting down, terminate
-		if ss.closedCtx.Err() != nil {
-			return
-		}
-
-		select {
-		case <-ss.closedCtx.Done():
-			return
-		case <-sub.Terminated.Done():
-			select {
-			case ss.restartChan <- struct{}{}:
-			case <-ss.closedCtx.Done():
-			}
-			return
-		}
-	}
-
-	ss.wg.Add(1)
-	utils.ManagedGo(monitorSubFunc, ss.wg.Done)
-}
-
 // caller must be holding ss.mu.
 func (ss *StreamState) stopBasedOnSub(ctx context.Context) error {
 	switch ss.streamSource {
@@ -251,13 +217,6 @@ func (ss *StreamState) stopBasedOnSub(ctx context.Context) error {
 		ss.streamSource = streamSourceUnknown
 		return nil
 	case streamSourcePassthrough:
-		ss.logger.Debugf("%s stopBasedOnSub stopping passthrough", ss.Stream.Name())
-		err := ss.unsubscribeH264Passthrough(ctx, ss.streamSourceSub.ID)
-		if err != nil {
-			return err
-		}
-		ss.streamSourceSub = rtppassthrough.NilSubscription
-		ss.streamSource = streamSourceUnknown
 		return nil
 
 	case streamSourceUnknown:
@@ -404,11 +363,6 @@ func (ss *StreamState) restart(ctx context.Context) {
 		return
 	}
 
-	if ss.streamSourceSub != rtppassthrough.NilSubscription && ss.streamSourceSub.Terminated.Err() == nil {
-		// if the stream is still healthy, do nothing
-		return
-	}
-
 	err := ss.streamH264Passthrough(ctx)
 	if err != nil {
 		ss.logger.CDebugw(ctx, "rtp_passthrough not possible, falling back to GoStream", "err", err.Error(), "name", ss.Stream.Name())
@@ -422,48 +376,8 @@ func (ss *StreamState) restart(ctx context.Context) {
 }
 
 func (ss *StreamState) streamH264Passthrough(ctx context.Context) error {
-	cam, err := camera.FromRobot(ss.robot, ss.Stream.Name())
+	_, err := camera.FromRobot(ss.robot, ss.Stream.Name())
 	if err != nil {
-		return err
-	}
-
-	rtpPassthroughSource, ok := cam.(rtppassthrough.Source)
-	if !ok {
-		err := fmt.Errorf("expected %s to implement rtppassthrough.Source", ss.Stream.Name())
-		return errors.Wrap(ErrRTPPassthroughNotSupported, err.Error())
-	}
-
-	cb := func(pkts []*rtp.Packet) {
-		for _, pkt := range pkts {
-			if err := ss.Stream.WriteRTP(pkt); err != nil {
-				ss.logger.Debugw("stream.WriteRTP", "name", ss.Stream.Name(), "err", err.Error())
-			}
-		}
-	}
-
-	sub, err := rtpPassthroughSource.SubscribeRTP(ctx, rtpBufferSize, cb)
-	if err != nil {
-		return errors.Wrap(ErrRTPPassthroughNotSupported, err.Error())
-	}
-	ss.logger.CWarnw(ctx, "Stream using experimental H264 passthrough", "name", ss.Stream.Name())
-	ss.monitorSubscription(sub)
-
-	return nil
-}
-
-func (ss *StreamState) unsubscribeH264Passthrough(ctx context.Context, id rtppassthrough.SubscriptionID) error {
-	cam, err := camera.FromRobot(ss.robot, ss.Stream.Name())
-	if err != nil {
-		return err
-	}
-
-	rtpPassthroughSource, ok := cam.(rtppassthrough.Source)
-	if !ok {
-		err := fmt.Errorf("expected %s to implement rtppassthrough.Source", ss.Stream.Name())
-		return errors.Wrap(ErrRTPPassthroughNotSupported, err.Error())
-	}
-
-	if err := rtpPassthroughSource.Unsubscribe(ctx, id); err != nil {
 		return err
 	}
 

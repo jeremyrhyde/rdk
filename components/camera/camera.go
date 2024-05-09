@@ -14,7 +14,6 @@ import (
 	pb "go.viam.com/api/component/camera/v1"
 	viamutils "go.viam.com/utils"
 
-	"go.viam.com/rdk/components/camera/rtppassthrough"
 	"go.viam.com/rdk/data"
 	"go.viam.com/rdk/gostream"
 	"go.viam.com/rdk/logging"
@@ -153,15 +152,10 @@ type ImagesSource interface {
 // If needed, implement the Camera another way. For example, a webcam
 // implements a Camera manually so that it can atomically reconfigure itself.
 func FromVideoSource(name resource.Name, src VideoSource, logger logging.Logger) Camera {
-	var rtpPassthroughSource rtppassthrough.Source
-	if ps, ok := src.(rtppassthrough.Source); ok {
-		rtpPassthroughSource = ps
-	}
 	return &sourceBasedCamera{
-		rtpPassthroughSource: rtpPassthroughSource,
-		Named:                name.AsNamed(),
-		VideoSource:          src,
-		Logger:               logger,
+		Named:       name.AsNamed(),
+		VideoSource: src,
+		Logger:      logger,
 	}
 }
 
@@ -169,26 +163,7 @@ type sourceBasedCamera struct {
 	resource.Named
 	resource.AlwaysRebuild
 	VideoSource
-	rtpPassthroughSource rtppassthrough.Source
 	logging.Logger
-}
-
-func (vs *sourceBasedCamera) SubscribeRTP(
-	ctx context.Context,
-	bufferSize int,
-	packetsCB rtppassthrough.PacketCallback,
-) (rtppassthrough.Subscription, error) {
-	if vs.rtpPassthroughSource != nil {
-		return vs.rtpPassthroughSource.SubscribeRTP(ctx, bufferSize, packetsCB)
-	}
-	return rtppassthrough.NilSubscription, errors.New("SubscribeRTP unimplemented")
-}
-
-func (vs *sourceBasedCamera) Unsubscribe(ctx context.Context, id rtppassthrough.SubscriptionID) error {
-	if vs.rtpPassthroughSource != nil {
-		return vs.rtpPassthroughSource.Unsubscribe(ctx, id)
-	}
-	return errors.New("Unsubscribe unimplemented")
 }
 
 // NewVideoSourceFromReader creates a VideoSource either with or without a projector. The stream type
@@ -203,11 +178,7 @@ func NewVideoSourceFromReader(
 	if reader == nil {
 		return nil, errors.New("cannot have a nil reader")
 	}
-	var rtpPassthroughSource rtppassthrough.Source
-	passthrough, isRTPPassthrough := reader.(rtppassthrough.Source)
-	if isRTPPassthrough {
-		rtpPassthroughSource = passthrough
-	}
+
 	vs := gostream.NewVideoSource(reader, prop.Video{})
 	actualSystem := syst
 	if actualSystem == nil {
@@ -228,31 +199,12 @@ func NewVideoSourceFromReader(
 		}
 	}
 	return &videoSource{
-		rtpPassthroughSource: rtpPassthroughSource,
-		system:               actualSystem,
-		videoSource:          vs,
-		videoStream:          gostream.NewEmbeddedVideoStream(vs),
-		actualSource:         reader,
-		imageType:            imageType,
+		system:       actualSystem,
+		videoSource:  vs,
+		videoStream:  gostream.NewEmbeddedVideoStream(vs),
+		actualSource: reader,
+		imageType:    imageType,
 	}, nil
-}
-
-func (vs *videoSource) SubscribeRTP(
-	ctx context.Context,
-	bufferSize int,
-	packetsCB rtppassthrough.PacketCallback,
-) (rtppassthrough.Subscription, error) {
-	if vs.rtpPassthroughSource != nil {
-		return vs.rtpPassthroughSource.SubscribeRTP(ctx, bufferSize, packetsCB)
-	}
-	return rtppassthrough.NilSubscription, errors.New("SubscribeRTP unimplemented")
-}
-
-func (vs *videoSource) Unsubscribe(ctx context.Context, id rtppassthrough.SubscriptionID) error {
-	if vs.rtpPassthroughSource != nil {
-		return vs.rtpPassthroughSource.Unsubscribe(ctx, id)
-	}
-	return errors.New("Unsubscribe unimplemented")
 }
 
 // NewPinholeModelWithBrownConradyDistortion creates a transform.PinholeCameraModel from
@@ -318,12 +270,11 @@ func WrapVideoSourceWithProjector(
 
 // videoSource implements a Camera with a gostream.VideoSource.
 type videoSource struct {
-	rtpPassthroughSource rtppassthrough.Source
-	videoSource          gostream.VideoSource
-	videoStream          gostream.VideoStream
-	actualSource         interface{}
-	system               *transform.PinholeCameraModel
-	imageType            ImageType
+	videoSource  gostream.VideoSource
+	videoStream  gostream.VideoStream
+	actualSource interface{}
+	system       *transform.PinholeCameraModel
+	imageType    ImageType
 }
 
 func (vs *videoSource) Stream(ctx context.Context, errHandlers ...gostream.ErrorHandler) (gostream.VideoStream, error) {

@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 
 	"go.viam.com/rdk/components/camera"
-	"go.viam.com/rdk/components/camera/rtppassthrough"
 	"go.viam.com/rdk/gostream"
 	"go.viam.com/rdk/pointcloud"
 	"go.viam.com/rdk/resource"
@@ -16,11 +15,10 @@ import (
 // Camera is an injected camera.
 type Camera struct {
 	camera.Camera
-	name                 resource.Name
-	RTPPassthroughSource rtppassthrough.Source
-	DoFunc               func(ctx context.Context, cmd map[string]interface{}) (map[string]interface{}, error)
-	ImagesFunc           func(ctx context.Context) ([]camera.NamedImage, resource.ResponseMetadata, error)
-	StreamFunc           func(
+	name       resource.Name
+	DoFunc     func(ctx context.Context, cmd map[string]interface{}) (map[string]interface{}, error)
+	ImagesFunc func(ctx context.Context) ([]camera.NamedImage, resource.ResponseMetadata, error)
+	StreamFunc func(
 		ctx context.Context,
 		errHandlers ...gostream.ErrorHandler,
 	) (gostream.VideoStream, error)
@@ -114,24 +112,4 @@ func (c *Camera) DoCommand(ctx context.Context, cmd map[string]interface{}) (map
 		return c.DoFunc(ctx, cmd)
 	}
 	return c.Camera.DoCommand(ctx, cmd)
-}
-
-// SubscribeRTP calls the injected RTPPassthroughSource or returns an error if unimplemented.
-func (c *Camera) SubscribeRTP(
-	ctx context.Context,
-	bufferSize int,
-	packetsCB rtppassthrough.PacketCallback,
-) (rtppassthrough.Subscription, error) {
-	if c.RTPPassthroughSource != nil {
-		return c.RTPPassthroughSource.SubscribeRTP(ctx, bufferSize, packetsCB)
-	}
-	return rtppassthrough.NilSubscription, errors.New("SubscribeRTP unimplemented")
-}
-
-// Unsubscribe calls the injected RTPPassthroughSource or returns an error if unimplemented.
-func (c *Camera) Unsubscribe(ctx context.Context, id rtppassthrough.SubscriptionID) error {
-	if c.RTPPassthroughSource != nil {
-		return c.RTPPassthroughSource.Unsubscribe(ctx, id)
-	}
-	return errors.New("Unsubscribe unimplemented")
 }
